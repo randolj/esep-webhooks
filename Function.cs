@@ -18,6 +18,8 @@ public class Function
     /// <returns></returns>
     public string FunctionHandler(string input, ILambdaContext context)
     {
+        context.Logger.LogLine($"Received input: {input}");
+
         dynamic json = JsonConvert.DeserializeObject<dynamic>(input.ToString());
         
         string payload = $"{{'text':'Issue Created: {json.issue.html_url}'}}";

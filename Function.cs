@@ -1,42 +1,56 @@
+using System;
+using System.IO;
+using System.Net.Http;
 using System.Text;
 using Amazon.Lambda.Core;
 using Newtonsoft.Json;
 
-// Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
-namespace EsepWebhook;
-
-public class Function
+namespace EsepWebhook
 {
-    
-    /// <summary>
-    /// A simple function that takes a string and does a ToUpper
-    /// </summary>
-    /// <param name="input"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    public string FunctionHandler(string input, ILambdaContext context)
+    public class Function
     {
-        context.Logger.LogLine($"Received input: {input}");
-
-        dynamic json = JsonConvert.DeserializeObject<dynamic>(input.ToString());
-        
-        if (json.issue != null && json.issue.html_url != null)
+        public string FunctionHandler(string input, ILambdaContext context)
         {
-        string payload = $"{{'text':'Issue Created: {json.issue.html_url}'}}";
-
-        var client = new HttpClient();
-        var webRequest = new HttpRequestMessage(HttpMethod.Post, Environment.GetEnvironmentVariable("SLACK_URL"))
+            try
             {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-            };
+                // Deserialize the input JSON string
+                dynamic json = JsonConvert.DeserializeObject<dynamic>(input);
 
-        var response = client.Send(webRequest);
-        using var reader = new StreamReader(response.Content.ReadAsStream());
-            
-        return reader.ReadToEnd();
+                // Check if the "issue" property exists
+                if (json.issue != null)
+                {
+                    // Access the "html_url" property within the "issue" object
+                    string issueUrl = json.issue.html_url;
+
+                    // Do something with the extracted URL, e.g., send to Slack
+                    string payload = $"{{'text':'Issue Created: {issueUrl}'}}";
+
+                    var client = new HttpClient();
+                    var webRequest = new HttpRequestMessage(HttpMethod.Post, Environment.GetEnvironmentVariable("SLACK_URL"))
+                    {
+                        Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                    };
+
+                    var response = client.Send(webRequest);
+                    using var reader = new StreamReader(response.Content.ReadAsStream());
+
+                    return reader.ReadToEnd();
+                }
+                else
+                {
+                    // Log a message or handle the case when "issue" property is not present
+                    context.Logger.LogLine("No 'issue' property found in the input JSON.");
+                    return "No 'issue' property found.";
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception and rethrow it
+                context.Logger.LogLine($"Error processing JSON: {ex}");
+                throw;
+            }
         }
-        return "fail";
     }
 }
